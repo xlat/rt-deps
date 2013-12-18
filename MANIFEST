@@ -2,5 +2,11 @@ Changes
 Makefile.PL
 MANIFEST
 README.md
-t/rt-deps.t
+t/00-rt-deps.t
+t/01-nodeps.t
+t/02-simple.t
+t/lib/test/A.pm
+t/lib/test/B.pm
+t/lib/test/C.pm
+t/lib/test/D.pm
 lib/rt/deps.pm
