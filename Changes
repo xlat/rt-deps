@@ -1,0 +1,6 @@
+Revision history for Perl extension rt::deps.
+
+0.01  Wed Dec 18 19:04:12 2013
+	- original version; created by h2xs 1.23 with options
+		-AX --skip-exporter --use-new-tests -n rt::deps
+

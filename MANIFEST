@@ -1,0 +1,6 @@
+Changes
+Makefile.PL
+MANIFEST
+README.md
+t/rt-deps.t
+lib/rt/deps.pm
