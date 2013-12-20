@@ -1,4 +1,6 @@
 Revision history for Perl extension rt::deps.
+0.02  Fri Dec 20 12:24:00 2013
+	- add tree and vtree layouts for output formats
 
 0.01  Wed Dec 18 19:04:12 2013
 	- original version; created by h2xs 1.23 with options

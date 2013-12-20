@@ -1,7 +1,8 @@
 package rt::deps;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 my $END = *STDERR;  #defaulted to STDERR
 my $CLOSE_END;
+my $FORMAT = "";
 my %deps;
 my %IGNORE;
 sub get_deps{ return \%deps }
@@ -47,6 +48,9 @@ sub import{
       }
       #~ print "ignoring modules: ", join(', ', keys %IGNORE), "\n";
     }
+    elsif(/^[hv]?tree$/i){
+      $FORMAT = lc $_;
+    }
     else{
       open $END, '>', $_ or die "could not open '$_' for writting!";
       $CLOSE_END++;
@@ -54,13 +58,100 @@ sub import{
   }
 }
 
+sub get_tree_hash{
+  my $nodes = { };
+  my $seen = { };
+  foreach my $mod (keys %deps ){        
+    next if exists $seen->{$mod};
+    addnode($nodes, $seen, $mod, $deps{$mod});
+  }
+  return $nodes;
+}
+
+sub get_tree{
+  my $layout = shift // 'centered in boxes';
+  my @ary;
+  @ary = ary_tree( get_tree_hash() );
+  require Text::Tree;
+  my $tree = Text::Tree->new( @{$ary[0]} );
+  return $tree->layout( $layout );
+}
+
+sub ary_tree{
+    my ($htree) = @_;
+    my @ary;
+    foreach(keys %$htree){        
+        my @children = ary_tree($htree->{$_});
+        if(@children){
+            push @ary, [ $_, @children ];
+        }
+        else{
+            push @ary, [ $_ ];
+        }
+    }
+    @ary;
+}
+sub findnode{
+    my $mod = shift;
+    if($deps{$mod}){
+    }
+}
+
+sub addnode{
+    my ($nodes, $seen, $mod, $children) = @_;
+    my $node = $nodes->{$mod} = { };
+    foreach my $child (@$children){
+        unless(exists $nodes->{$child}){
+            addnode($nodes, $seen, $child, $deps{$child});
+        }
+        if(my $cnode = delete $nodes->{$child}){
+            #findnode and detach from %nodes if it exists
+            #attach $cnode to parent $node
+            $node->{$child} = $cnode;
+        }
+    }
+    $seen->{$mod} = $node;
+}
+
+sub vtree_dump{
+    my ($nodes, $printer, $indent) = @_;
+    my $count = keys %$nodes;
+    while(my ($mod, $children)=each %$nodes){
+        $printer->( $indent, $mod);
+        my $subindent;
+        $subindent = $indent;
+        $subindent =~ tr/+-/| /;
+        $subindent =~ s/\|(\s*)$/ $1/ unless --$count;
+        $subindent .= "+---";
+        vtree_dump( $children, $printer, $subindent);
+    }
+}
+
+sub get_vtree{
+    my $printer = shift || sub{ print STDERR @_, "\n" };
+    vtree_dump( get_tree_hash(), $printer, "" );
+}
+
 #at end of script dump deps, 
 END{
   #remove hook
   @INC = grep{ "$_" ne "$hook" } @INC;
   if($END){
-    require Data::Dumper;
-    print $END Data::Dumper->Dump( [ get_deps() ], [qw( deps )] ), "\n";
+    if($FORMAT){
+      if($FORMAT =~ /^h?tree$/){
+        print $END get_tree();
+      }
+      elsif($FORMAT =~ /^vtree$/){
+        get_vtree(sub{print $END @_, "\n"});
+      }
+      else{
+        die "unknow output format '$FORMAT'";
+      }
+    }
+    else{
+      require Data::Dumper;
+      print $END Data::Dumper->Dump( [ get_deps() ], [qw( deps )] ), "\n";
+    }
     close $END if $CLOSE_END;
   }
 }
@@ -73,7 +164,9 @@ rt::deps - a module that keep track of first module caller at runtime.
 
 =head1 SYNOPSIS
 
+  perl -Mrt::deps=vtree -e"use Test::More; use Carp::Always; use strict; use warnings"
   perl -Mrt::deps=stdout ourscript.pl
+  
 
 or
 
@@ -91,15 +184,36 @@ runtime dependencies tree.
 
 =head1 USE
 
-The only accepted option is 'ignore' which take an array ref of module 
-to ignore. It (acutaly) does not recurse, meaning that if you do:
+Accepted option are 'ignore', 'tree' and 'vtree'.
+
+Option 'ignore' take an array ref of module to ignore or a signle string. 
+It recurses, meaning that if you do:
 
   use rt::deps ignore => [ 'test::A' ];
   use test::A;
 
 If test::A use test::B and test::B use test::C, you will get 
 
+  my $deps = { };
+
+and not:
+
   my $deps = { test::B => [ 'test::C' ] };
+
+Options 'tree', 'vtree', 'htree' will change dumped output format.
+
+=head1 LIMITATIONS
+
+This module will think a module required but not present as a dependency, this
+is because it doesn't look at %INC to assert module is realy loaded.
+
+If something will unshift something in @INC, this module will never see it!
+
+=head1 TODO
+
+It would be possible to insert a final hook (push @INC, \&hookfinal) to
+check for realy loaded modules, so it could be noticed as optional dependency.
+
 
 =head1 SEE ALSO
 
